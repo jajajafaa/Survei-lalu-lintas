@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<title>Smart Tally Counter — Survei Lalu Lintas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg:        #070b0f;
+    --bg2:       #0b1017;
+    --surface:   #101820;
+    --surface2:  #17232f;
+    --border:    #1c3048;
+    --border2:   #0f1e2e;
+    --amber:     #f5a623;
+    --amber-dim: rgba(245,166,35,0.18);
+    --cyan:      #22d3ee;
+    --cyan-dim:  rgba(34,211,238,0.15);
+    --green:     #10b981;
+    --red:       #ef4444;
+    --text:      #d6e4f0;
+    --text-mid:  #607d96;
+    --text-dim:  #2c4560;
+
+    --mc:  #b06ef3;
+    --lv:  #4b9ef7;
+    --au:  #2dd4a0;
+    --bs:  #fbbf24;
+    --tr:  #f87171;
+    --um:  #38c4e0;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box;
+      -webkit-tap-highlight-color:transparent; user-select:none; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Barlow Condensed', sans-serif;
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  /* ─── HEADER ─────────────────────────────────────── */
+  .app-header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    backdrop-filter: blur(8px);
+  }
+  .app-title {
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    color: var(--amber);
+    text-transform: uppercase;
+    line-height: 1;
+  }
+  .app-sub {
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 0.18em;
+    margin-top: 2px;
+  }
+  .header-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 3px 8px;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--text-mid);
+    font-weight: 700;
+  }
+
+  /* ─── TIMER ───────────────────────────────────────── */
+  .timer-section {
+    background: linear-gradient(160deg, var(--bg2) 0%, var(--bg) 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 16px 14px;
+    text-align: center;
+  }
+  .timer-digits {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(52px, 16vw, 80px);
+    line-height: 1;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    text-shadow: none;
+    transition: color 0.4s, text-shadow 0.4s;
+  }
+  .timer-digits.live {
+    color: var(--cyan);
+    text-shadow: 0 0 24px rgba(34,211,238,0.35), 0 0 60px rgba(34,211,238,0.12);
+  }
+  .timer-digits.paused {
+    color: var(--amber);
+    text-shadow: 0 0 18px rgba(245,166,35,0.25);
+  }
+  .slot-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 14px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--amber);
+    letter-spacing: 0.14em;
+    transition: background 0.3s, color 0.3s;
+  }
+  .slot-pill.flash {
+    background: var(--amber);
+    color: #000;
+  }
+  .timer-meta {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: var(--text-dim);
+  }
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    display: none;
+    animation: blink 1.4s ease infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+  .timer-controls {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .ctrl-btn {
+    padding: 7px 20px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text-mid);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.12s;
+    touch-action: manipulation;
+  }
+  .ctrl-btn:active { transform: scale(0.95); background: var(--surface2); color: var(--text); }
+  .ctrl-btn.hidden { display: none; }
+  .ctrl-btn.danger { color: var(--red); border-color: rgba(239,68,68,0.25); }
+  .ctrl-btn.danger:active { background: rgba(239,68,68,0.08); }
+
+  /* ─── FORM ────────────────────────────────────────── */
+  .form-section { padding: 14px 14px 8px; }
+  .sec-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .form-row { display: flex; gap: 8px; }
+  .fld { flex: 1; }
+  .fld + .fld { }
+  .field-in {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    outline: none;
+    margin-bottom: 0;
+    transition: border-color 0.15s;
+  }
+  .field-in:focus { border-color: var(--amber); }
+  .field-in::placeholder { color: var(--text-dim); }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+
+  /* ─── DIVIDER ─────────────────────────────────────── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 14px 14px;
+  }
+
+  /* ─── TALLY BUTTONS ──────────────────────────────── */
+  .tally-section { padding: 0 14px; }
+  .btn-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .veh-card {
+    display: flex;
+    flex-direction: column;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  }
+  .veh-tap {
+    position: relative;
+    padding: 16px 12px 14px;
+    border: 2px solid;
+    border-bottom: none;
+    border-radius: 10px 10px 0 0;
+    background: var(--surface);
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.08s, background 0.08s;
+    touch-action: manipulation;
+    min-height: 110px;
+  }
+  .veh-tap:active, .veh-tap.tap-anim {
+    transform: scale(0.96);
+  }
+  .veh-emoji { font-size: 26px; display: block; line-height: 1; margin-bottom: 5px; }
+  .veh-name {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--text);
+    line-height: 1.2;
+    display: block;
+  }
+  .veh-code {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    opacity: 0.65;
+    display: block;
+    margin-top: 2px;
+  }
+  .veh-count {
+    position: absolute;
+    top: 10px; right: 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 30px;
+    line-height: 1;
+    font-weight: normal;
+  }
+  .veh-smp {
+    position: absolute;
+    bottom: 8px; right: 10px;
+    font-size: 9px;
+    opacity: 0.45;
+    letter-spacing: 0.1em;
+    font-family: 'Share Tech Mono', monospace;
+  }
+  .veh-undo {
+    border: 2px solid;
+    border-top: 1px solid;
+    border-radius: 0 0 10px 10px;
+    padding: 6px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--text-mid);
+    background: var(--surface2);
+    text-transform: uppercase;
+    touch-action: manipulation;
+    transition: all 0.1s;
+  }
+  .veh-undo:active { color: var(--text); }
+
+  /* Per-vehicle colors */
+  .v-MC .veh-tap  { border-color: var(--mc); }
+  .v-MC .veh-tap:active { background: rgba(176,110,243,0.1); }
+  .v-MC .veh-count { color: var(--mc); }
+  .v-MC .veh-code  { color: var(--mc); }
+  .v-MC .veh-undo  { border-color: var(--mc); border-top-color: var(--border2); }
+  .v-MC .veh-undo:active { color: var(--mc); background: rgba(176,110,243,0.08); }
+
+  .v-LV .veh-tap  { border-color: var(--lv); }
+  .v-LV .veh-tap:active { background: rgba(75,158,247,0.1); }
+  .v-LV .veh-count { color: var(--lv); }
+  .v-LV .veh-code  { color: var(--lv); }
+  .v-LV .veh-undo  { border-color: var(--lv); border-top-color: var(--border2); }
+  .v-LV .veh-undo:active { color: var(--lv); background: rgba(75,158,247,0.08); }
+
+  .v-AU .veh-tap  { border-color: var(--au); }
+  .v-AU .veh-tap:active { background: rgba(45,212,160,0.1); }
+  .v-AU .veh-count { color: var(--au); }
+  .v-AU .veh-code  { color: var(--au); }
+  .v-AU .veh-undo  { border-color: var(--au); border-top-color: var(--border2); }
+  .v-AU .veh-undo:active { color: var(--au); background: rgba(45,212,160,0.08); }
+
+  .v-BS .veh-tap  { border-color: var(--bs); }
+  .v-BS .veh-tap:active { background: rgba(251,191,36,0.1); }
+  .v-BS .veh-count { color: var(--bs); }
+  .v-BS .veh-code  { color: var(--bs); }
+  .v-BS .veh-undo  { border-color: var(--bs); border-top-color: var(--border2); }
+  .v-BS .veh-undo:active { color: var(--bs); background: rgba(251,191,36,0.08); }
+
+  .v-TR .veh-tap  { border-color: var(--tr); }
+  .v-TR .veh-tap:active { background: rgba(248,113,113,0.1); }
+  .v-TR .veh-count { color: var(--tr); }
+  .v-TR .veh-code  { color: var(--tr); }
+  .v-TR .veh-undo  { border-color: var(--tr); border-top-color: var(--border2); }
+  .v-TR .veh-undo:active { color: var(--tr); background: rgba(248,113,113,0.08); }
+
+  .v-UM .veh-tap  { border-color: var(--um); }
+  .v-UM .veh-tap:active { background: rgba(56,196,224,0.1); }
+  .v-UM .veh-count { color: var(--um); }
+  .v-UM .veh-code  { color: var(--um); }
+  .v-UM .veh-undo  { border-color: var(--um); border-top-color: var(--border2); }
+  .v-UM .veh-undo:active { color: var(--um); background: rgba(56,196,224,0.08); }
+
+  /* ─── RECAP TABLE ────────────────────────────────── */
+  .recap-section { padding: 0 14px; }
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  table { width: 100%; border-collapse: collapse; min-width: 480px; }
+  thead th {
+    background: var(--surface2);
+    color: var(--amber);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 8px 8px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  thead th:first-child { text-align: left; padding-left: 12px; }
+  tbody td {
+    padding: 7px 8px;
+    text-align: center;
+    border-bottom: 1px solid var(--border2);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+  }
+  tbody td:first-child {
+    text-align: left;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--text-mid);
+    white-space: nowrap;
+    padding-left: 12px;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.active-row { background: rgba(245,166,35,0.04); }
+  tbody tr.active-row td:first-child { color: var(--amber); }
+  .col-total { color: var(--cyan) !important; }
+  tfoot td {
+    background: var(--surface2);
+    border-top: 1px solid var(--border);
+    padding: 8px 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--cyan);
+    text-align: center;
+  }
+  tfoot td:first-child {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--amber);
+    text-align: left;
+    padding-left: 12px;
+  }
+
+  /* ─── EXPORT ─────────────────────────────────────── */
+  .export-section { padding: 0 14px 32px; }
+  .info-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-mid);
+  }
+  .info-box strong { color: var(--amber); }
+  .btn-export {
+    width: 100%;
+    padding: 17px 12px;
+    background: linear-gradient(135deg, #064e35 0%, #059669 100%);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    touch-action: manipulation;
+    box-shadow: 0 4px 24px rgba(5,150,105,0.28);
+    transition: all 0.12s;
+  }
+  .btn-export:active { transform: scale(0.98); box-shadow: 0 2px 12px rgba(5,150,105,0.15); }
+
+  /* ─── TOAST ──────────────────────────────────────── */
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--green);
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* spacers */
+  .sp { height: 16px; }
+</style>
+</head>
+<body>
+
+<!-- ────────────────────── HEADER ────────────────────── -->
+<header class="app-header">
+  <div>
+    <div class="app-title">⚡ Smart Tally Counter</div>
+    <div class="app-sub">SURVEI LALU LINTAS · REKAYASA LALIN · UNTIDAR</div>
+  </div>
+  <div class="header-badge">v1.0</div>
+</header>
+
+<!-- ────────────────────── TIMER ─────────────────────── -->
+<div class="timer-section">
+  <div class="timer-digits idle" id="timerDisplay">00:00:00</div>
+
+  <div>
+    <div class="slot-pill" id="slotPill">SLOT 1 — 00:00–15:00</div>
+  </div>
+
+  <div class="timer-meta">
+    <span class="live-dot" id="liveDot"></span>
+    <span id="timerStatus">TEKAN TOMBOL KENDARAAN UNTUK MULAI</span>
+  </div>
+
+  <div class="timer-controls">
+    <button class="ctrl-btn hidden" id="btnPause" onclick="togglePause()">PAUSE</button>
+    <button class="ctrl-btn danger" onclick="confirmReset()">↺ RESET SEMUA</button>
+  </div>
+</div>
+
+<!-- ────────────────────── FORM ──────────────────────── -->
+<div class="form-section">
+  <div class="sec-label">📍 Identitas Survei</div>
+  <input class="field-in" type="text" id="inLokasi" placeholder="Nama lokasi / ruas jalan...">
+  <div class="form-grid">
+    <input class="field-in" type="text" id="inArah"     placeholder="Arah (mis. U→S)">
+    <input class="field-in" type="text" id="inSurveyor" placeholder="Nama surveyor">
+    <input class="field-in" type="text" id="inCuaca"    placeholder="Cuaca">
+    <input class="field-in" type="date" id="inTanggal">
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ────────────────────── TALLY BUTTONS ─────────────── -->
+<div class="tally-section">
+  <div class="sec-label">🚦 Pencacahan Kendaraan</div>
+  <div class="btn-grid" id="btnGrid"></div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ────────────────────── RECAP TABLE ───────────────── -->
+<div class="recap-section">
+  <div class="sec-label">📊 Rekap Per Interval 15 Menit</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>INTERVAL</th>
+          <th>MC</th><th>LV</th><th>ANG</th><th>BUS</th><th>TRK</th><th>UM</th>
+          <th>TOTAL</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+      <tfoot id="tableFoot"></tfoot>
+    </table>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ────────────────────── EXPORT ────────────────────── -->
+<div class="export-section">
+  <div class="info-box">
+    File Excel terdiri dari 2 sheet: <strong>Rekap Volume</strong> (data survei + konversi smp)
+    dan <strong>Analisis Kapasitas</strong> (template formula PKJI 2023 siap pakai).
+  </div>
+  <button class="btn-export" onclick="exportExcel()">
+    📥 &nbsp;EKSPOR KE EXCEL (.xlsx)
+  </button>
+</div>
+
+<!-- ────────────────────── TOAST ─────────────────────── -->
+<div class="toast" id="toast"></div>
+
+<!-- ═══════════════════════ SCRIPT ═══════════════════════ -->
+<script>
+'use strict';
+
+// ─── CONFIG ────────────────────────────────────────────────
+const CATS = [
+  { id:'MC', label:'Motor',            code:'MC · ×0.25 smp', emoji:'🏍️', freq:1220, smp:0.25 },
+  { id:'LV', label:'Kend. Ringan',     code:'LV · ×1.00 smp', emoji:'🚗', freq:920,  smp:1.00 },
+  { id:'AU', label:'Angkutan Umum',    code:'AU · ×1.00 smp', emoji:'🚐', freq:720,  smp:1.00 },
+  { id:'BS', label:'Bus',              code:'BS · ×1.20 smp', emoji:'🚌', freq:520,  smp:1.20 },
+  { id:'TR', label:'Truk',             code:'TR · ×1.20 smp', emoji:'🚛', freq:360,  smp:1.20 },
+  { id:'UM', label:'Kend. Tdk Bermotor', code:'UM · ×0.80', emoji:'🚲', freq:230,  smp:0.80 },
+];
+const SLOT_MS = 15 * 60 * 1000; // 15 minutes
+
+// ─── STATE ─────────────────────────────────────────────────
+let started      = false;
+let paused       = false;
+let startStamp   = null;   // Date.now() on last (re)start
+let pausedAccum  = 0;      // ms accumulated before pause
+let timerLoop    = null;
+let lastSlotIdx  = 0;
+
+// slots[i] = { MC:0, LV:0, ... }
+let slots = [newSlot()];
+
+// ─── HELPERS ───────────────────────────────────────────────
+function newSlot() {
+  const s = {};
+  CATS.forEach(c => s[c.id] = 0);
+  return s;
+}
+
+function elapsedMs() {
+  if (!started) return 0;
+  if (paused)   return pausedAccum;
+  return pausedAccum + (Date.now() - startStamp);
+}
+
+function slotOf(ms) {
+  return Math.floor(ms / SLOT_MS);
+}
+
+function ensureSlot(idx) {
+  while (slots.length <= idx) slots.push(newSlot());
+}
+
+function fmtMs(ms) {
+  const s = Math.floor(ms / 1000);
+  const h = String(Math.floor(s / 3600)).padStart(2,'0');
+  const m = String(Math.floor((s % 3600) / 60)).padStart(2,'0');
+  const sc = String(s % 60).padStart(2,'0');
+  return `${h}:${m}:${sc}`;
+}
+
+function fmtSlotLabel(idx) {
+  const start = idx * 15, end = start + 15;
+  const f = n => `${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`;
+  return `${f(start)}–${f(end)}`;
+}
+
+function today() {
+  return new Date().toISOString().slice(0,10);
+}
+
+// ─── AUDIO ─────────────────────────────────────────────────
+let audioCtx = null;
+
+function ctx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function beep(freq, dur = 0.08, vol = 0.3) {
+  try {
+    const c = ctx(), osc = c.createOscillator(), g = c.createGain();
+    osc.connect(g); g.connect(c.destination);
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(vol, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+    osc.start(c.currentTime);
+    osc.stop(c.currentTime + dur);
+  } catch(e){}
+}
+
+function beepSlotChange() {
+  // Double high chirp = new slot
+  try {
+    const c = ctx();
+    [0, 0.14].forEach(d => {
+      const osc = c.createOscillator(), g = c.createGain();
+      osc.connect(g); g.connect(c.destination);
+      osc.type = 'triangle';
+      osc.frequency.value = 2000;
+      g.gain.setValueAtTime(0.22, c.currentTime + d);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + d + 0.1);
+      osc.start(c.currentTime + d);
+      osc.stop(c.currentTime + d + 0.1);
+    });
+  } catch(e){}
+}
+
+// ─── TIMER ─────────────────────────────────────────────────
+function startLooping() {
+  clearInterval(timerLoop);
+  timerLoop = setInterval(tick, 200);
+}
+
+function stopLooping() {
+  clearInterval(timerLoop);
+  timerLoop = null;
+}
+
+function tick() {
+  const ms  = elapsedMs();
+  const idx = slotOf(ms);
+
+  // New slot detected
+  if (idx > lastSlotIdx) {
+    ensureSlot(idx);
+    lastSlotIdx = idx;
+    beepSlotChange();
+    flashSlot();
+  }
+
+  // Update timer display
+  const disp = document.getElementById('timerDisplay');
+  disp.textContent = fmtMs(ms);
+  if (!disp.classList.contains('live')) {
+    disp.className = 'timer-digits live';
+  }
+
+  // Update slot pill
+  document.getElementById('slotPill').textContent =
+    `SLOT ${idx + 1} — ${fmtSlotLabel(idx)}`;
+
+  updateBtnCounts(idx);
+  renderTable();
+}
+
+function flashSlot() {
+  const pill = document.getElementById('slotPill');
+  pill.classList.add('flash');
+  setTimeout(() => pill.classList.remove('flash'), 700);
+}
+
+function togglePause() {
+  if (!started) return;
+  if (paused) {
+    // Resume
+    startStamp = Date.now();
+    paused = false;
+    startLooping();
+    document.getElementById('btnPause').textContent = 'PAUSE';
+    document.getElementById('timerDisplay').className = 'timer-digits live';
+    document.getElementById('timerStatus').textContent = 'SURVEI BERJALAN';
+    document.getElementById('liveDot').style.display = 'inline-block';
+  } else {
+    // Pause
+    pausedAccum = elapsedMs();
+    paused = true;
+    stopLooping();
+    document.getElementById('btnPause').textContent = 'LANJUT';
+    document.getElementById('timerDisplay').className = 'timer-digits paused';
+    document.getElementById('timerStatus').textContent = '⏸  DIJEDA — TEKAN LANJUT';
+    document.getElementById('liveDot').style.display = 'none';
+  }
+}
+
+function confirmReset() {
+  if (confirm('Reset semua data? Pastikan data sudah diekspor dulu!')) {
+    resetAll();
+  }
+}
+
+function resetAll() {
+  stopLooping();
+  started = false; paused = false;
+  startStamp = null; pausedAccum = 0; lastSlotIdx = 0;
+  slots = [newSlot()];
+
+  document.getElementById('timerDisplay').className = 'timer-digits idle';
+  document.getElementById('timerDisplay').textContent = '00:00:00';
+  document.getElementById('slotPill').textContent = 'SLOT 1 — 00:00–15:00';
+  document.getElementById('timerStatus').textContent = 'TEKAN TOMBOL KENDARAAN UNTUK MULAI';
+  document.getElementById('liveDot').style.display = 'none';
+  document.getElementById('btnPause').className = 'ctrl-btn hidden';
+  document.getElementById('btnPause').textContent = 'PAUSE';
+
+  updateBtnCounts(0);
+  renderTable();
+  showToast('🔄 Data direset');
+}
+
+// ─── TALLY ─────────────────────────────────────────────────
+function tally(id) {
+  // Start timer on very first tap
+  if (!started) {
+    started = true;
+    startStamp = Date.now();
+    paused = false;
+    document.getElementById('btnPause').className = 'ctrl-btn';
+    document.getElementById('timerStatus').textContent = 'SURVEI BERJALAN';
+    document.getElementById('liveDot').style.display = 'inline-block';
+    startLooping();
+  }
+
+  const ms  = elapsedMs();
+  const idx = slotOf(ms);
+  ensureSlot(idx);
+  slots[idx][id]++;
+
+  // Sound
+  const cat = CATS.find(c => c.id === id);
+  beep(cat.freq);
+
+  // Visual tap feedback
+  const btn = document.getElementById('tap-' + id);
+  if (btn) {
+    btn.classList.add('tap-anim');
+    setTimeout(() => btn.classList.remove('tap-anim'), 120);
+  }
+
+  updateBtnCounts(idx);
+  renderTable();
+}
+
+function undo(id) {
+  const ms  = elapsedMs();
+  const idx = slotOf(ms);
+  ensureSlot(idx);
+  if (slots[idx][id] > 0) {
+    slots[idx][id]--;
+    beep(180, 0.07, 0.2);
+    updateBtnCounts(idx);
+    renderTable();
+  }
+}
+
+// ─── UI UPDATE ─────────────────────────────────────────────
+function updateBtnCounts(curIdx) {
+  ensureSlot(curIdx);
+  CATS.forEach(c => {
+    const el = document.getElementById('cnt-' + c.id);
+    if (el) el.textContent = slots[curIdx][c.id];
+  });
+}
+
+function renderTable() {
+  const curIdx = started ? slotOf(elapsedMs()) : 0;
+  const tbody  = document.getElementById('tableBody');
+  const tfoot  = document.getElementById('tableFoot');
+
+  const totals = {};
+  CATS.forEach(c => totals[c.id] = 0);
+
+  let html = '';
+  slots.forEach((slot, i) => {
+    const rowVeh = CATS.reduce((s, c) => s + slot[c.id], 0);
+    CATS.forEach(c => totals[c.id] += slot[c.id]);
+    const cls = (i === curIdx && started) ? ' class="active-row"' : '';
+    const marker = (i === curIdx && started) ? '▶ ' : '';
+    html += `<tr${cls}>
+      <td>${marker}Slot ${i+1} (${fmtSlotLabel(i)})</td>
+      ${CATS.map(c => `<td>${slot[c.id]}</td>`).join('')}
+      <td class="col-total">${rowVeh}</td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
+
+  const grandVeh = CATS.reduce((s, c) => s + totals[c.id], 0);
+  tfoot.innerHTML = `<tr>
+    <td>TOTAL KESELURUHAN</td>
+    ${CATS.map(c => `<td>${totals[c.id]}</td>`).join('')}
+    <td>${grandVeh}</td>
+  </tr>`;
+}
+
+// ─── BUILD BUTTONS ─────────────────────────────────────────
+function buildButtons() {
+  const grid = document.getElementById('btnGrid');
+  grid.innerHTML = '';
+  CATS.forEach(cat => {
+    const div = document.createElement('div');
+    div.className = `veh-card v-${cat.id}`;
+    div.innerHTML = `
+      <button class="veh-tap" id="tap-${cat.id}" onclick="tally('${cat.id}')" ontouchstart="">
+        <span class="veh-emoji">${cat.emoji}</span>
+        <span class="veh-name">${cat.label}</span>
+        <span class="veh-code">${cat.code}</span>
+        <span class="veh-count" id="cnt-${cat.id}">0</span>
+      </button>
+      <div class="veh-undo" onclick="undo('${cat.id}')">↩ UNDO</div>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+// ─── EXCEL EXPORT ──────────────────────────────────────────
+function exportExcel() {
+  const wb = XLSX.utils.book_new();
+
+  const lokasi   = document.getElementById('inLokasi').value   || '(tidak diisi)';
+  const arah     = document.getElementById('inArah').value     || '(tidak diisi)';
+  const surveyor = document.getElementById('inSurveyor').value || '(tidak diisi)';
+  const cuaca    = document.getElementById('inCuaca').value    || '(tidak diisi)';
+  const tanggal  = document.getElementById('inTanggal').value  || today();
+  const durasi   = fmtMs(elapsedMs());
+
+  // ── SHEET 1: Rekap Volume ────────────────────────────────
+  const s1 = [];
+  s1.push(['FORMULIR VOLUME LALU LINTAS']);
+  s1.push(['Nama Lokasi / Ruas Jalan', lokasi]);
+  s1.push(['Arah Pengamatan',          arah]);
+  s1.push(['Nama Surveyor',            surveyor]);
+  s1.push(['Cuaca',                    cuaca]);
+  s1.push(['Tanggal Survei',           tanggal]);
+  s1.push(['Durasi Timer',             durasi]);
+  s1.push(['Acuan', 'Pd.T-19-2004-B & PKJI 2023']);
+  s1.push([]);
+
+  // Header
+  s1.push([
+    'No','Interval',
+    'Motor (MC)','Kend. Ringan (LV)','Angkutan Umum (AU)',
+    'Bus (BS)','Truk (TR)','Kend. Tdk Bermotor (UM)',
+    'Total Kend.','Total (smp/interval)'
+  ]);
+
+  const totVeh = {}, totSmp = {};
+  CATS.forEach(c => { totVeh[c.id] = 0; totSmp[c.id] = 0; });
+  let gVeh = 0, gSmp = 0;
+
+  slots.forEach((slot, i) => {
+    const rowV = CATS.reduce((s, c) => s + slot[c.id], 0);
+    const rowS = CATS.reduce((s, c) => s + slot[c.id] * c.smp, 0);
+    CATS.forEach(c => { totVeh[c.id] += slot[c.id]; totSmp[c.id] += slot[c.id] * c.smp; });
+    gVeh += rowV; gSmp += rowS;
+    s1.push([
+      i+1, fmtSlotLabel(i),
+      slot.MC, slot.LV, slot.AU, slot.BS, slot.TR, slot.UM,
+      rowV, Math.round(rowS * 100) / 100
+    ]);
+  });
+
+  s1.push([]);
+  s1.push([
+    'TOTAL KESELURUHAN', '',
+    totVeh.MC, totVeh.LV, totVeh.AU, totVeh.BS, totVeh.TR, totVeh.UM,
+    gVeh, Math.round(gSmp * 100) / 100
+  ]);
+
+  s1.push([]);
+  s1.push(['FAKTOR EKUIVALENSI (smp)']);
+  s1.push(['MC=0.25', 'LV=1.00', 'AU=1.00', 'Bus=1.20', 'Truk=1.20', 'UM=0.80']);
+  s1.push(['Sumber: PKJI 2023 untuk jalan perkotaan']);
+
+  const ws1 = XLSX.utils.aoa_to_sheet(s1);
+  ws1['!cols'] = [
+    {wch:5},{wch:16},{wch:14},{wch:18},{wch:19},
+    {wch:9},{wch:9},{wch:23},{wch:12},{wch:20}
+  ];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Rekap Volume');
+
+  // ── SHEET 2: Analisis Kapasitas ──────────────────────────
+  const s2 = [];
+
+  s2.push(['ANALISIS KAPASITAS JALAN PERKOTAAN']);
+  s2.push(['Acuan: Pedoman Kapasitas Jalan Indonesia (PKJI) 2023']);
+  s2.push(['Lokasi', lokasi]);
+  s2.push(['Tanggal', tanggal]);
+  s2.push([]);
+
+  s2.push(['════ A. DATA LAPANGAN ════']);
+  s2.push(['Parameter','Simbol','Nilai','Satuan','Keterangan']);
+  s2.push(['Tipe Jalan','-','','—','Contoh: 2/2TT, 4/2T, 4/2TT, 6/2T']);
+  s2.push(['Jumlah Lajur per Arah','n','','lajur','']);
+  s2.push(['Lebar Lajur Rata-rata','WL','','m','Ukur di lapangan']);
+  s2.push(['Lebar Jalur Efektif','Wc','','m','= n × WL']);
+  s2.push(['Pemisahan Arah','SP','','%','Contoh: 50-50 atau 60-40']);
+  s2.push(['Kelas Hambatan Samping','SFC','','—','VL / L / M / H / VH']);
+  s2.push(['Populasi Kota','P','','juta jiwa','Kota tempat survei']);
+  s2.push([]);
+
+  s2.push(['════ B. KAPASITAS DASAR (C0) ════']);
+  s2.push(['Tipe Jalan','C0 (smp/jam)','Keterangan']);
+  s2.push(['2/2 TT (2 lajur tak terbagi)', 2900,'Jalan 2 arah tanpa pemisah']);
+  s2.push(['4/2 TT (4 lajur tak terbagi)', 3100,'Jalan 4 lajur tanpa median']);
+  s2.push(['4/2 T (4 lajur terbagi)',       3700,'Jalan 4 lajur dengan median']);
+  s2.push(['6/2 T (6 lajur terbagi)',        5500,'Jalan 6 lajur dengan median']);
+  s2.push(['→ C0 yang dipilih','ISIKAN DI SEL INI ↓','','smp/jam','Sesuaikan dengan tipe jalan']);
+  s2.push([]);
+
+  s2.push(['════ C. FAKTOR PENYESUAIAN (PKJI 2023) ════']);
+  s2.push(['Faktor','Simbol','Nilai (isi di sini)','Keterangan']);
+  s2.push(['Penyesuaian Lebar Jalur','FCw','1.00','Dari Tabel FCw PKJI 2023']);
+  s2.push(['Pemisahan Arah (jln. tak terbagi)','FCsp','1.00','Dari Tabel FCsp PKJI 2023']);
+  s2.push(['Hambatan Samping','FCsf','1.00','Dari Tabel FCsf PKJI 2023']);
+  s2.push(['Ukuran Kota','FCcs','1.00','Dari Tabel FCcs PKJI 2023']);
+  s2.push([]);
+
+  s2.push(['════ D. PERHITUNGAN KAPASITAS & KINERJA ════']);
+  s2.push(['Parameter','Simbol','Rumus / Nilai','Satuan','Hasil (isi manual)']);
+  s2.push(['Kapasitas Dasar',          'C0', '← Dari tabel B','smp/jam','']);
+  s2.push(['Faktor Lebar Jalur',        'FCw','← Dari tabel C','-','']);
+  s2.push(['Faktor Pemisahan Arah',     'FCsp','← Dari tabel C','-','']);
+  s2.push(['Faktor Hambatan Samping',   'FCsf','← Dari tabel C','-','']);
+  s2.push(['Faktor Ukuran Kota',        'FCcs','← Dari tabel C','-','']);
+  s2.push(['Kapasitas Aktual',          'C','= C0 × FCw × FCsp × FCsf × FCcs','smp/jam','[isi hasil C di sini]']);
+  s2.push([]);
+  s2.push(['Volume Jam Puncak (Q)',     'Q','← Dari sheet Rekap Volume','smp/jam', Math.round(gSmp*100)/100 + ' (total survei)']);
+  s2.push(['Derajat Kejenuhan',         'DS','= Q / C','-','[isi hasil DS di sini]']);
+  s2.push(['Evaluasi','-',
+    'DS<0.60 = Baik | DS<0.75 = Cukup | DS<0.85 = Sedang | DS≤1.00 = Buruk | DS>1.00 = Kritis',
+    '-','']);
+  s2.push([]);
+
+  s2.push(['════ E. PEAK HOUR FACTOR (PHF) ════']);
+  s2.push(['Formula: PHF = V_jam / (4 × V_15menit_maks)']);
+  s2.push(['Parameter','Nilai','Satuan']);
+  s2.push(['Volume Jam Puncak (kend/jam)','','kend/jam']);
+  s2.push(['Volume 15 menit tertinggi','','kend/15mnt']);
+  s2.push(['PHF','= baris atas / (4 × baris bawah)','-']);
+  s2.push([]);
+
+  s2.push(['════ F. KONVERSI kend → smp (dari data survei ini) ════']);
+  s2.push(['Jenis Kendaraan','emp (smp)','Jumlah (kend)','Volume (smp)']);
+  const empRow = [
+    ['Sepeda Motor (MC)',          0.25, totVeh.MC, Math.round(totVeh.MC * 0.25 * 100)/100],
+    ['Kendaraan Ringan (LV)',      1.00, totVeh.LV, Math.round(totVeh.LV * 1.00 * 100)/100],
+    ['Angkutan Umum (AU)',         1.00, totVeh.AU, Math.round(totVeh.AU * 1.00 * 100)/100],
+    ['Bus (BS)',                   1.20, totVeh.BS, Math.round(totVeh.BS * 1.20 * 100)/100],
+    ['Truk (TR)',                  1.20, totVeh.TR, Math.round(totVeh.TR * 1.20 * 100)/100],
+    ['Kend. Tidak Bermotor (UM)', 0.80, totVeh.UM, Math.round(totVeh.UM * 0.80 * 100)/100],
+  ];
+  empRow.forEach(r => s2.push(r));
+  s2.push(['TOTAL','', gVeh, Math.round(gSmp * 100) / 100]);
+  s2.push([]);
+  s2.push(['Catatan: Nilai UM pada arus utama bersifat indikatif.']);
+  s2.push(['Untuk analisis hambatan samping, gunakan kejadian UM dari formulir hambatan samping.']);
+  s2.push(['Nilai emp sesuai PKJI 2023 untuk jalan perkotaan tak terbagi / terbagi.']);
+
+  const ws2 = XLSX.utils.aoa_to_sheet(s2);
+  ws2['!cols'] = [
+    {wch:32},{wch:10},{wch:44},{wch:12},{wch:22}
+  ];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Analisis Kapasitas');
+
+  // ── Download ─────────────────────────────────────────────
+  const fname = `SurveiLalin_${lokasi.replace(/\s+/g,'_').slice(0,20)}_${tanggal}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  showToast('✅ File Excel berhasil diunduh!');
+}
+
+// ─── TOAST ─────────────────────────────────────────────────
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ─── INIT ──────────────────────────────────────────────────
+document.getElementById('inTanggal').value = today();
+buildButtons();
+renderTable();
+</script>
+</body>
+</html>
